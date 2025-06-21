@@ -1,26 +1,33 @@
 import ipywidgets as widgets
 from IPython.display import display
 import numpy as np
+from typing import Optional
 
 # 使用相对导入，更简洁
 from .image_contrast_viewer import ImageContrastViewer
 
 
 class ImageSequenceViewer:
-    def __init__(self, imageSequence: np.ndarray, useRangeSlider: bool = True):
+    def __init__(self, imageSequence: np.ndarray, useRangeSlider: bool = True, showSizeControl: bool = True):
         """
         初始化图像序列查看器。
 
         Args:
-            imageSequence: 灰度图序列，形状为 (z, y, x)
+            imageSequence: 灰度图像或序列，形状为 (y, x) 或 (z, y, x)
             useRangeSlider: 是否使用范围滑块，默认为True
+            showSizeControl: 是否显示图像大小控制，默认为True
         """
-        if imageSequence.ndim != 3:
-            raise ValueError("imageSequence 必须是三维 numpy 数组 (z, y, x)")
+        # 支持2D和3D数组
+        if imageSequence.ndim == 2:
+            # 如果是2D数组，转换为3D (1, y, x)
+            imageSequence = imageSequence[np.newaxis, :, :]
+        elif imageSequence.ndim != 3:
+            raise ValueError("imageSequence 必须是二维或三维 numpy 数组")
 
         self.imageSequence = imageSequence
         self.numImages = imageSequence.shape[0]
         self.useRangeSlider = useRangeSlider
+        self.showSizeControl = showSizeControl
         
         # 创建图像选择控件
         self._createSelectWidget()
@@ -42,7 +49,7 @@ class ImageSequenceViewer:
             value=0,
             description='',
             disabled=False,
-            layout=widgets.Layout(width='150px')
+            layout=widgets.Layout(width='70px')
         )
         self.selectWidget.observe(self._onValueChange, names='value')
 
@@ -51,9 +58,12 @@ class ImageSequenceViewer:
         # 获取初始图像（第一张）
         currentImageData = self.imageSequence[0]
         self.imageViewer = ImageContrastViewer(currentImageData)
-        
+
         # 获取图像查看器的widget
-        self.imageViewerWidget = self.imageViewer.display(useRangeSlider=self.useRangeSlider)
+        self.imageViewerWidget = self.imageViewer.display(
+            useRangeSlider=self.useRangeSlider,
+            showSizeControl=self.showSizeControl
+        )
 
     def _onValueChange(self, change: dict) -> None:
         """
@@ -98,7 +108,7 @@ class ImageSequenceViewer:
     def setCurrentIndex(self, index: int) -> None:
         """
         设置当前选中的图像索引
-        
+
         Args:
             index: 图像索引
         """
@@ -106,6 +116,36 @@ class ImageSequenceViewer:
             self.selectWidget.value = index
         else:
             raise ValueError(f"索引 {index} 超出范围 [0, {self.numImages-1}]")
+
+    def updateImageSequence(self, newImageSequence: np.ndarray) -> None:
+        """
+        更新图像序列数据
+
+        Args:
+            newImageSequence: 新的图像序列，形状为 (z, y, x)
+        """
+        if newImageSequence.ndim == 2:
+            # 如果是2D数组，转换为3D (1, y, x)
+            newImageSequence = newImageSequence[np.newaxis, :, :]
+        elif newImageSequence.ndim != 3:
+            raise ValueError("newImageSequence 必须是二维或三维 numpy 数组")
+
+        # 更新数据
+        self.imageSequence = newImageSequence
+        self.numImages = newImageSequence.shape[0]
+
+        # 重新创建选择控件
+        self._createSelectWidget()
+
+        # 更新图像查看器
+        currentImageData = self.imageSequence[0]
+        self.imageViewer.updateImageData(currentImageData)
+
+        # 更新组合控件
+        self.combinedWidget.children = [self.selectWidget, self.imageViewerWidget]
+
+        # 触发图像更新
+        self._triggerImageUpdate()
 
 
 if __name__ == "__main__":

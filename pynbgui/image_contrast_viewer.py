@@ -31,6 +31,8 @@ class ImageContrastViewer:
         self.rangeSlider: Optional[IntRangeSlider] = None
         self.vminSlider: Optional[FloatSlider] = None
         self.vmaxSlider: Optional[FloatSlider] = None
+        self.sizeSlider: Optional[FloatSlider] = None
+        self.originalDataDisplay: np.ndarray = self.dataDisplay.copy()  # 保存原始显示数据
 
     def updateImageData(self, newData: np.ndarray) -> None:
         """
@@ -42,6 +44,7 @@ class ImageContrastViewer:
         self.dataDisplay = np.interp(
             self.data, (self.data.min(), self.data.max()), (0, 255)
         ).astype(np.uint8)
+        self.originalDataDisplay = self.dataDisplay.copy()  # 保存原始显示数据
         # 触发滑块的更新，如果它们已经存在的话
         # 这里需要更复杂的逻辑来触发已存在的interact控件的更新，
         # 暂时先不实现，因为interact默认会重新创建控件
@@ -74,7 +77,7 @@ class ImageContrastViewer:
         # 使用PIL进行图像缩放
         img_pil = Image.fromarray(self.dataDisplay, mode="L")
         img_resized = img_pil.resize(
-            (shape1 // 8 * 8, shape0 // 8 * 8), resample=Image.LANCZOS
+            (shape1 // 8 * 8, shape0 // 8 * 8), resample=Image.Resampling.LANCZOS
         )
         self.dataDisplay = np.array(img_resized).astype(np.uint8)
 
@@ -88,12 +91,13 @@ class ImageContrastViewer:
         img = Image.fromarray(self.dataDisplay, mode="L")
         img.save(filename)
 
-    def display(self, useRangeSlider: bool = False):
+    def display(self, useRangeSlider: bool = False, showSizeControl: bool = True):
         """
         显示交互式图像对比度调节界面
 
         Args:
             useRangeSlider: 是否使用双滑动条，False则使用两个独立滑块
+            showSizeControl: 是否显示图像大小控制滑块
 
         创建滑块用于调节图像对比度，图像会根据滑块值实时更新显示
         """
@@ -106,6 +110,10 @@ class ImageContrastViewer:
             if self.vminSlider is None or self.vmaxSlider is None:
                 self._createSeparateSliders()
 
+        # 创建大小控制滑块
+        if showSizeControl and self.sizeSlider is None:
+            self._createSizeSlider()
+
         # 确保 plot_output 已经包含图像
         with self.plotOutput:
             # 初始显示图像，使用默认对比度
@@ -115,10 +123,20 @@ class ImageContrastViewer:
                 self._updateContrastImage(self.vminSlider.value, self.vmaxSlider.value)
             display(self.imageWidget)  # 第一次显示 image_widget
 
+        # 构建控件布局
+        controls = []
+
         if useRangeSlider:
-            return widgets.VBox([self.rangeSlider, self.plotOutput])
+            controls.append(self.rangeSlider)
         else:
-            return widgets.VBox([widgets.HBox([self.vminSlider, self.vmaxSlider]), self.plotOutput])
+            controls.append(widgets.HBox([self.vminSlider, self.vmaxSlider]))
+
+        if showSizeControl:
+            controls.append(self.sizeSlider)
+
+        controls.append(self.plotOutput)
+
+        return widgets.VBox(controls)
 
     def _createRangeSlider(self) -> None:
         """创建范围滑块"""
@@ -169,6 +187,59 @@ class ImageContrastViewer:
         vmax = self.vmaxSlider.value
         with self.plotOutput:
             self._updateContrastImage(vmin, vmax)
+
+    def _createSizeSlider(self) -> None:
+        """创建图像大小控制滑块"""
+        self.sizeSlider = FloatSlider(
+            min=0.1,
+            max=10.0,
+            step=0.1,
+            value=1.0,
+            description="图像大小:",
+            style={"description_width": "initial"},
+            layout={"width": "600px"},
+        )
+        self.sizeSlider.observe(self._onSizeSliderChange, names="value")
+
+    def _onSizeSliderChange(self, change) -> None:
+        """图像大小滑块变化回调"""
+        size_ratio = change["new"]
+        # 从原始数据重新缩放
+        self._resizeImage(size_ratio)
+        # 重新应用对比度
+        if self.useRangeSlider and self.rangeSlider:
+            vmin, vmax = self.rangeSlider.value
+        elif self.vminSlider and self.vmaxSlider:
+            vmin, vmax = self.vminSlider.value, self.vmaxSlider.value
+        else:
+            vmin, vmax = 0, 255
+
+        with self.plotOutput:
+            self._updateContrastImage(vmin, vmax)
+
+    def _resizeImage(self, size_ratio: float) -> None:
+        """
+        根据缩放比例调整图像大小
+
+        Args:
+            size_ratio: 缩放比例，1.0为原始大小
+        """
+        if size_ratio <= 0:
+            size_ratio = 0.1
+
+        # 从原始数据重新缩放
+        original_shape = self.originalDataDisplay.shape
+        new_height = int(original_shape[0] * size_ratio)
+        new_width = int(original_shape[1] * size_ratio)
+
+        # 确保尺寸至少为1
+        new_height = max(1, new_height)
+        new_width = max(1, new_width)
+
+        # 使用PIL进行图像缩放
+        img_pil = Image.fromarray(self.originalDataDisplay, mode="L")
+        img_resized = img_pil.resize((new_width, new_height), resample=Image.Resampling.LANCZOS)
+        self.dataDisplay = np.array(img_resized).astype(np.uint8)
 
     def _updateContrastImage(self, vmin: float, vmax: float) -> None:
         """

@@ -159,3 +159,41 @@ pynbgui/
 - 图像序列处理
 - 多维数据探索
 - 实验数据查看
+
+## 🆕 ROI选择器（基于PIL）
+
+### 新增功能特点
+- **完全避免matplotlib** - 使用PIL进行图像处理，避免图形关闭问题
+- **实时交互** - 使用IntRangeSlider提供直观的范围选择
+- **实时预览** - 拖拽滑块时实时显示ROI框
+- **节流更新** - 避免频繁重绘，确保流畅体验
+- **稳定性高** - 纯ipywidgets实现，在Jupyter notebook中完全稳定
+
+### 使用方法
+
+```python
+from pynbgui.roi_selector_pil import select_roi_interactive
+import numpy as np
+
+# 创建示例图像
+image = np.random.rand(300, 400) * 255
+image = image.astype(np.uint8)
+
+# 选择ROI - 显示交互式选择器
+roi_selector = select_roi_interactive(image)
+
+# 用户交互完成后获取结果
+# roi_coords = roi_selector.roi_result  # (x_min, x_max, y_min, y_max)
+```
+
+### 测试
+
+运行基本功能测试：
+```bash
+python test_pil_roi_basic.py
+```
+
+在Jupyter notebook中测试：
+```bash
+jupyter notebook test_pil_roi_selector.ipynb
+```

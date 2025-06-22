@@ -23,3 +23,6 @@
       - c() #
 - 支持调试时从进程间通过multiprocessing传输过来查看
 - 方便添加图像处理功能 (缩放、旋转、滤波)
+## BUG
+- 从ImageSequenceViewer的selectWidget切换图像时，ImageContrastViewer的sizeSlider的放大倍数没有对新显示的图像生效
+- ImageSequenceViewer中应该固定一个

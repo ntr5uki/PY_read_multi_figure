@@ -12,4 +12,5 @@ dependencies = [
     "h5py>=3.14.0",
     "ipyfilechooser>=0.6.0",
     "matplotlib>=3.10.3",
+    "ipympl>=0.9.7",
 ]

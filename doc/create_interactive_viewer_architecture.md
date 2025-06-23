@@ -10,6 +10,14 @@
   - InteractiveImageViewer.__init__(useRangeSlider: bool, showSizeControl: bool) # 主要的交互式图像查看器类初始化
     - widgets.HTML() # **创建状态显示标签**
     - widgets.VBox([]) # **创建图像查看器容器**
+    - create_horizontal_menu_bar() # **创建紧凑型菜单栏**
+      - create_menu_bar_panels() # 创建4个专用面板
+        - CompactOperationPanel("文件", "auto") # 文件操作面板
+        - CompactOperationPanel("操作", "auto") # 图像操作面板
+        - CompactOperationPanel("工具", "auto") # 工具面板（包含ROI选择）
+        - CompactOperationPanel("帮助", "auto") # 帮助面板
+      - widgets.HBox([...]) # 水平布局容器，使用flexbox避免横向滚动条
+    - widgets.Button() # **创建ROI选择按钮**
     - widgets.VBox([...]) # **创建主界面布局**
     - JupyterArraySelector(on_selection_change=self._on_array_selected) # **创建数组选择器**
       - JupyterArraySelector.__init__(on_selection_change) # 数组选择器初始化
@@ -36,6 +44,11 @@
       - 数组维度检查 # 检查2D/3D/4D数组并进行相应处理
       - self.status_label.value更新 # 更新状态显示
       - self._create_or_update_viewer(array) # 创建或更新图像查看器
+      - ROI功能状态管理 # 启用/禁用工具面板的ROI选择项
+    - _on_roi_menu_clicked(item_id: str, button) # **菜单栏ROI选择回调函数**
+      - self._on_roi_button_clicked(button) # 调用原有ROI按钮逻辑
+    - _on_roi_button_clicked(button) # **ROI按钮点击回调函数**
+      - PILROISelector创建和显示 # 创建ROI选择器界面
     - _create_or_update_viewer(array: np.ndarray) # **创建或更新图像查看器**
       - ImageSequenceViewer(array, self.useRangeSlider, self.showSizeControl) # 创建新的图像序列查看器
       - self.imageViewer.updateImageSequence(array) # 更新现有查看器的数据
@@ -47,6 +60,45 @@
     - refresh_arrays() # 刷新可用的numpy数组列表
       - self.arraySelector._refresh_arrays() # 调用选择器的刷新方法
     - get_current_viewer() # 获取当前的图像序列查看器
+
+## 🎛️ CompactOperationPanel 详细架构
+
+- CompactOperationPanel(title: str = "操作", width: str = "auto") # 紧凑型操作面板类初始化
+  - 面板属性初始化 # 设置基本属性
+    - self.title = title # 面板标题
+    - self.width = width # 面板宽度（推荐使用'auto'）
+    - self.is_menu_open = False # 菜单展开状态
+    - self.menu_items: Dict[str, dict] = {} # 菜单项字典
+    - self.callbacks: Dict[str, Callable] = {} # 回调函数字典
+  - _create_widgets() # 创建界面组件
+    - widgets.Button() # 主操作按钮，使用flexbox布局
+      - width='auto', flex='1 1 auto' # 自适应宽度，避免横向滚动条
+      - margin='0px' # 消除边距累积
+    - widgets.VBox() # 菜单容器
+      - width='auto', overflow='auto' # 自适应宽度，垂直滚动
+      - max_height='200px' # 限制最大高度
+    - widgets.VBox() # 主面板容器
+      - width='auto', flex='1 1 auto' # 弹性布局
+  - add_menu_item(item_id, description, button_style, tooltip, enabled) # 添加菜单项
+    - widgets.Button() # 菜单按钮
+      - width='auto', flex='1 1 auto' # 自适应宽度
+      - margin='0px' # 消除边距
+    - 事件绑定 # 绑定点击事件处理器
+    - _update_menu_container() # 更新菜单容器
+  - remove_menu_item(item_id) # 移除菜单项
+  - set_menu_item_enabled(item_id, enabled) # 设置菜单项启用状态
+  - set_menu_item_style(item_id, button_style) # 设置菜单项样式
+  - toggle_menu() # 切换菜单显示状态
+  - open_menu() # 打开菜单
+  - close_menu() # 关闭菜单
+  - register_callback(item_id, callback) # 注册菜单项回调函数
+  - unregister_callback(item_id) # 取消注册回调函数
+  - get_menu_state() # 获取菜单状态信息
+  - _on_menu_item_click(item_id, button) # 菜单项点击处理
+    - 回调函数执行 # 执行注册的回调函数
+    - 输出捕获 # 捕获回调函数的print输出
+    - 异常处理 # 捕获并显示回调函数异常
+    - close_menu() # 自动收起菜单
 
 ## 🔗 ImageSequenceViewer 详细架构
 
@@ -264,6 +316,12 @@
     - interactive_image_viewer.py # 交互式图像查看器模块
       - from .jupyter_array_selector import JupyterArraySelector # 导入数组选择器
       - from .image_sequence_viewer import ImageSequenceViewer # 导入图像序列查看器
+      - from .roi_selector_pil import PILROISelector # 导入ROI选择器
+      - from .compact_operation_panel import create_horizontal_menu_bar # 导入菜单栏创建函数
+    - compact_operation_panel.py # 紧凑型操作面板模块
+      - import ipywidgets as widgets # 导入ipywidgets库
+      - from typing import Dict, Callable # 导入类型注解
+      - import io, from contextlib import redirect_stdout # 导入输出捕获相关模块
     - jupyter_array_selector.py # Jupyter数组选择器模块
       - import ipywidgets as widgets # 导入ipywidgets库
       - from IPython.display import display # 导入IPython显示功能
@@ -286,6 +344,12 @@
 
 - 运行时对象关系 # 运行时各对象之间的包含和依赖关系
   - InteractiveImageViewer # 主要的交互式图像查看器对象
+    - menu_bar: widgets.HBox # 紧凑型菜单栏水平布局控件
+    - file_panel: CompactOperationPanel # 文件操作面板
+    - operation_panel: CompactOperationPanel # 图像操作面板
+    - tools_panel: CompactOperationPanel # 工具面板（包含ROI选择）
+    - help_panel: CompactOperationPanel # 帮助面板
+    - roi_button: widgets.Button # ROI选择按钮控件
     - arraySelector: JupyterArraySelector # 数组选择器对象
       - array_dropdown: widgets.Dropdown # 数组选择下拉框控件
       - refresh_button: widgets.Button # 刷新按钮控件
@@ -404,6 +468,10 @@ selector.display()
   - 解决方案: 在__init__方法中添加2D到3D的自动转换 # 与updateImageSequence方法保持一致
   - 影响范围: ImageSequenceViewer.__init__() # 现在支持(y,x)和(z,y,x)两种格式
 
+- **问题2**: 集成CompactOperationPanel后出现横向滚动条 # 修复了菜单栏布局问题
+  - 解决方案: 使用flexbox布局和自动宽度，消除边距累积 # 采用width='auto'和flex='1 1 auto'
+  - 影响范围: CompactOperationPanel组件和create_horizontal_menu_bar函数 # 完全消除横向滚动条
+
 ### 新增功能
 
 - **图像大小控制**: 实时缩放显示图像 # 新增的图像大小调节功能
@@ -411,6 +479,13 @@ selector.display()
   - 高质量插值: 使用LANCZOS算法 # 保证缩放质量
   - 基于原始数据: 避免累积误差 # 每次缩放都基于原始图像数据
   - 可选控制: showSizeControl参数 # 可以选择是否显示大小控制
+
+- **紧凑型菜单栏**: 集成4个专用操作面板 # 新增的菜单栏系统
+  - 4个专用面板: 文件、操作、工具、帮助 # 水平排列的功能面板
+  - ROI功能集成: 工具面板包含ROI选择功能 # 智能启用/禁用状态管理
+  - 动态菜单项: 支持动态添加/移除菜单项 # 可扩展的菜单系统
+  - 回调函数支持: 完整的事件处理机制 # 支持自定义功能扩展
+  - 输出捕获: 捕获回调函数的print输出 # 便于调试和用户反馈
 
 ### 参数更新
 
@@ -430,7 +505,7 @@ selector.display()
 ## 🔧 使用示例更新
 
 ```python
-# 基本使用（默认启用大小控制）
+# 基本使用（默认启用大小控制和菜单栏）
 viewer = create_interactive_viewer()
 viewer.display()
 
@@ -447,10 +522,22 @@ viewer = create_interactive_viewer(
     showSizeControl=False   # 隐藏图像大小控制
 )
 viewer.display()
+
+# 菜单栏功能扩展示例
+# 添加文件操作菜单项
+viewer.file_panel.add_menu_item('save', '💾 保存', 'success', '保存当前图像')
+
+# 注册回调函数
+def save_callback(item_id, button):
+    print(f"执行保存操作: {item_id}")
+
+viewer.file_panel.register_callback('save', save_callback)
+
+# 检查ROI功能状态
+roi_state = viewer.tools_panel.get_menu_state()
+print(f"ROI功能状态: {'启用' if 'roi_select' in roi_state['enabled_items'] else '禁用'}")
 ```
 
 ---
 
-*本文档详细描述了 `create_interactive_viewer` 的完整架构，使用md无序号列表分级显示函数关系树形图，并为每个函数添加了必要的注释说明。包含最新的功能更新和问题修复。*
-```
-```
+*本文档详细描述了 `create_interactive_viewer` 的完整架构，使用md无序号列表分级显示函数关系树形图，并为每个函数添加了必要的注释说明。包含最新的CompactOperationPanel集成、横向滚动条修复和功能更新。*

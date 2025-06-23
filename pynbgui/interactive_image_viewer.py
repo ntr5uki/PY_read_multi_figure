@@ -6,6 +6,7 @@ from typing import Optional
 from .jupyter_array_selector import JupyterArraySelector
 from .image_sequence_viewer import ImageSequenceViewer
 from .roi_selector_pil import PILROISelector
+from .compact_operation_panel import create_horizontal_menu_bar
 
 
 class InteractiveImageViewer:
@@ -34,6 +35,16 @@ class InteractiveImageViewer:
         # 创建图像查看器容器
         self.viewer_container = widgets.VBox([])
 
+        # 创建紧凑型菜单栏
+        self.menu_bar, self.menu_panels = create_horizontal_menu_bar()
+        self.file_panel, self.operation_panel, self.tools_panel, self.help_panel = self.menu_panels
+
+        # 注册工具面板的ROI选择回调
+        self.tools_panel.register_callback('roi_select', self._on_roi_menu_clicked)
+
+        # 初始状态禁用ROI选择（没有图像时）
+        self.tools_panel.set_menu_item_enabled('roi_select', False)
+
         # 创建ROI选择按钮
         self.roi_button = widgets.Button(
             description='🎯 选择ROI区域',
@@ -52,6 +63,7 @@ class InteractiveImageViewer:
         # 创建主界面
         self.main_widget = widgets.VBox([
             widgets.HTML("<h3>📊 交互式图像查看器</h3>"),
+            self.menu_bar,  # 紧凑型菜单栏
             self.roi_button,  # ROI按钮放在数组选择器上方
             self.arraySelector.main_widget,
             self.status_label,
@@ -139,6 +151,10 @@ class InteractiveImageViewer:
             if hasattr(self, 'roi_button') and self.roi_button is not None:
                 self.roi_button.disabled = False
 
+            # 启用工具面板的ROI选择项
+            if hasattr(self, 'tools_panel') and self.tools_panel is not None:
+                self.tools_panel.set_menu_item_enabled('roi_select', True)
+
         except Exception as e:
             if hasattr(self, 'status_label') and self.status_label is not None:
                 self.status_label.value = f"❌ 创建图像查看器时出错: {str(e)}"
@@ -155,6 +171,10 @@ class InteractiveImageViewer:
         # 禁用ROI按钮（没有图像查看器时）
         if hasattr(self, 'roi_button') and self.roi_button is not None:
             self.roi_button.disabled = True
+
+        # 禁用工具面板的ROI选择项
+        if hasattr(self, 'tools_panel') and self.tools_panel is not None:
+            self.tools_panel.set_menu_item_enabled('roi_select', False)
     
     def display(self) -> None:
         """显示交互式图像查看器"""
@@ -172,6 +192,18 @@ class InteractiveImageViewer:
             当前的ImageSequenceViewer实例，如果没有则返回None
         """
         return self.imageViewer
+
+    def _on_roi_menu_clicked(self, item_id: str, button) -> None:
+        """
+        菜单栏ROI选择回调函数
+
+        Args:
+            item_id: 菜单项ID
+            button: 点击的按钮widget
+        """
+        print(f"🎯 从菜单栏触发ROI选择")
+        # 调用原有的ROI按钮点击逻辑
+        self._on_roi_button_clicked(button)
 
     def _on_roi_button_clicked(self, button) -> None:
         """

@@ -31,7 +31,8 @@ class PILROISelector:
         
         # 节流更新控制
         self._last_update_time = 0
-        self._update_delay = 0.01  # 50ms节流延迟
+        # 根据图像尺寸动态调整节流延迟
+        self._update_delay = self._calculate_throttle_delay()
         
         # 创建UI组件
         self._create_widgets()
@@ -50,12 +51,32 @@ class PILROISelector:
             return np.repeat(image, 3, axis=2)
         else:
             raise ValueError(f"不支持的图像维度: {image.shape}")
+
+    def _calculate_throttle_delay(self) -> float:
+        """
+        根据图像尺寸动态计算节流延迟
+
+        Returns:
+            节流延迟时间（秒）
+        """
+        # 计算图像像素数
+        total_pixels = self.image_width * self.image_height
+
+        # 根据像素数动态调整延迟
+        if total_pixels < 100000:  # 小于100K像素（如320x240）
+            return 0.02  # 20ms
+        elif total_pixels < 300000:  # 小于300K像素（如640x480）
+            return 0.05  # 50ms
+        elif total_pixels < 600000:  # 小于600K像素（如640x800）
+            return 0.08  # 80ms
+        else:  # 大于600K像素
+            return 0.1   # 100ms
     
     def _create_widgets(self):
         """创建所有UI组件"""
         # 图像显示组件
         self.image_widget = widgets.Image(
-            format='png',
+            format='jpeg',
             width=600,
             height=400
         )
@@ -177,7 +198,7 @@ class PILROISelector:
         
         # 转换为bytes并更新widget
         buffer = io.BytesIO()
-        pil_image.save(buffer, format='PNG')
+        pil_image.save(buffer, format='JPEG', quality=90)
         self.image_widget.value = buffer.getvalue()
     
 

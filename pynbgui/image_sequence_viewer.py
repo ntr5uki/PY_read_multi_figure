@@ -28,10 +28,13 @@ class ImageSequenceViewer:
         self.numImages = imageSequence.shape[0]
         self.useRangeSlider = useRangeSlider
         self.showSizeControl = showSizeControl
-        
+
+        # 计算整个图像序列的全局灰度范围，确保显示一致性
+        self.globalRange = (float(imageSequence.min()), float(imageSequence.max()))
+
         # 创建图像选择控件
         self._createSelectWidget()
-        
+
         # 创建图像查看器
         self._createImageViewer()
         
@@ -49,7 +52,7 @@ class ImageSequenceViewer:
             value=0,
             description='',
             disabled=False,
-            layout=widgets.Layout(width='70px')
+            layout=widgets.Layout(width='70px',height='256px')
         )
         self.selectWidget.observe(self._onValueChange, names='value')
 
@@ -57,7 +60,8 @@ class ImageSequenceViewer:
         """创建图像查看器"""
         # 获取初始图像（第一张）
         currentImageData = self.imageSequence[0]
-        self.imageViewer = ImageContrastViewer(currentImageData)
+        # 传递全局灰度范围以确保图像序列显示一致性
+        self.imageViewer = ImageContrastViewer(currentImageData, global_range=self.globalRange)
 
         # 获取图像查看器的widget
         self.imageViewerWidget = self.imageViewer.display(
@@ -83,13 +87,20 @@ class ImageSequenceViewer:
 
     def _triggerImageUpdate(self) -> None:
         """触发图像查看器的更新"""
-        if self.useRangeSlider and hasattr(self.imageViewer, 'rangeSlider'):
+        # 触发对比度滑块更新
+        if self.useRangeSlider and hasattr(self.imageViewer, 'rangeSlider') and self.imageViewer.rangeSlider is not None:
             self.imageViewer._onRangeSliderChange({
                 'new': self.imageViewer.rangeSlider.value
             })
-        elif not self.useRangeSlider and hasattr(self.imageViewer, 'vminSlider'):
+        elif not self.useRangeSlider and hasattr(self.imageViewer, 'vminSlider') and self.imageViewer.vminSlider is not None:
             self.imageViewer._onSeparateSlidersChange({
                 'new': self.imageViewer.vminSlider.value
+            })
+
+        # 触发大小滑块更新，确保缩放倍数在图像切换时保持
+        if hasattr(self.imageViewer, 'sizeSlider') and self.imageViewer.sizeSlider is not None:
+            self.imageViewer._onSizeSliderChange({
+                'new': self.imageViewer.sizeSlider.value
             })
 
     def display(self) -> None:
@@ -133,6 +144,12 @@ class ImageSequenceViewer:
         # 更新数据
         self.imageSequence = newImageSequence
         self.numImages = newImageSequence.shape[0]
+
+        # 重新计算新图像序列的全局灰度范围
+        self.globalRange = (float(newImageSequence.min()), float(newImageSequence.max()))
+
+        # 更新ImageContrastViewer的全局范围
+        self.imageViewer.global_range = self.globalRange
 
         # 重新创建选择控件
         self._createSelectWidget()

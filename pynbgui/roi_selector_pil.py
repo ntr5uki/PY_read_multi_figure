@@ -31,7 +31,7 @@ class PILROISelector:
         
         # 节流更新控制
         self._last_update_time = 0
-        self._update_delay = 0.05  # 50ms节流延迟
+        self._update_delay = 0.01  # 50ms节流延迟
         
         # 创建UI组件
         self._create_widgets()

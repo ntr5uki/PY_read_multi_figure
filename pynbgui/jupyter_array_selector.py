@@ -134,8 +134,8 @@ class JupyterArraySelector:
             self.array_dropdown.options = options
             
             # 如果有数组，默认选择第一个
-            if options:
-                self.array_dropdown.value = options[0][1]
+            # if options:
+            #     self.array_dropdown.value = options[0][1]
         else:
             self.array_dropdown.options = [("没有找到numpy数组", None)]
             self.info_label.value = "<span style='color: orange;'>⚠️ 工作区中没有找到numpy数组</span>"

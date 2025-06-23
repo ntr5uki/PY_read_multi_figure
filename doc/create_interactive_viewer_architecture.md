@@ -8,10 +8,10 @@
 
 - create_interactive_viewer(useRangeSlider: bool = True, showSizeControl: bool = True) # 便捷函数，创建交互式图像查看器实例
   - InteractiveImageViewer.__init__(useRangeSlider: bool, showSizeControl: bool) # 主要的交互式图像查看器类初始化
-    - widgets.HTML() # 创建状态显示标签
-    - widgets.VBox([]) # 创建图像查看器容器
-    - widgets.VBox([...]) # 创建主界面布局
-    - JupyterArraySelector(on_selection_change=self._on_array_selected) # 创建数组选择器
+    - widgets.HTML() # **创建状态显示标签**
+    - widgets.VBox([]) # **创建图像查看器容器**
+    - widgets.VBox([...]) # **创建主界面布局**
+    - JupyterArraySelector(on_selection_change=self._on_array_selected) # **创建数组选择器**
       - JupyterArraySelector.__init__(on_selection_change) # 数组选择器初始化
         - self._create_widgets() # 创建选择器界面控件
           - widgets.Dropdown() # 数组选择下拉框
@@ -32,11 +32,11 @@
           - self._refresh_arrays() # 重新扫描工作区数组
         - get_selected_array() # 获取当前选择的数组
         - display() # 显示选择器界面
-    - _on_array_selected(name: str, array: np.ndarray) # 数组选择回调函数
+    - _on_array_selected(name: str, array: np.ndarray) # **数组选择回调函数**
       - 数组维度检查 # 检查2D/3D/4D数组并进行相应处理
       - self.status_label.value更新 # 更新状态显示
       - self._create_or_update_viewer(array) # 创建或更新图像查看器
-    - _create_or_update_viewer(array: np.ndarray) # 创建或更新图像查看器
+    - _create_or_update_viewer(array: np.ndarray) # **创建或更新图像查看器**
       - ImageSequenceViewer(array, self.useRangeSlider, self.showSizeControl) # 创建新的图像序列查看器
       - self.imageViewer.updateImageSequence(array) # 更新现有查看器的数据
     - _clear_viewer() # 清除图像查看器

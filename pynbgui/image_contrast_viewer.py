@@ -7,19 +7,29 @@ from typing import Union, Tuple, Optional
 
 
 class ImageContrastViewer:
-    def __init__(self, data: np.ndarray) -> None:
+    def __init__(self, data: np.ndarray, global_range: Optional[Tuple[float, float]] = None) -> None:
         """
         初始化图像对比度查看器
 
         Args:
             data: 输入的图像数据，numpy数组，支持2D或3D（会自动压缩为2D）
+            global_range: 可选的全局灰度范围 (min_val, max_val)，用于图像序列的一致性显示
         """
         self.data: np.ndarray = data
         # 确保数据是2维的
         if len(data.shape) == 3:
             self.data = data.squeeze()  # 移除大小为1的维度
+
+        # 使用全局范围或当前图像范围进行归一化
+        if global_range is not None:
+            self.global_range = global_range
+            data_min, data_max = global_range
+        else:
+            data_min, data_max = self.data.min(), self.data.max()
+            self.global_range = (data_min, data_max)
+
         self.dataDisplay: np.ndarray = np.interp(
-            self.data, (self.data.min(), self.data.max()), (0, 255)
+            self.data, (data_min, data_max), (0, 255)
         ).astype(np.uint8)
         self.imageWidget: widgets.Image = widgets.Image(
             format="jpeg"
@@ -41,13 +51,17 @@ class ImageContrastViewer:
         self.data = newData
         if len(self.data.shape) == 3:
             self.data = self.data.squeeze()
+
+        # 使用全局范围进行归一化，确保图像序列显示一致性
+        data_min, data_max = self.global_range
         self.dataDisplay = np.interp(
-            self.data, (self.data.min(), self.data.max()), (0, 255)
+            self.data, (data_min, data_max), (0, 255)
         ).astype(np.uint8)
         self.originalDataDisplay = self.dataDisplay.copy()  # 保存原始显示数据
-        # 触发滑块的更新，如果它们已经存在的话
-        # 这里需要更复杂的逻辑来触发已存在的interact控件的更新，
-        # 暂时先不实现，因为interact默认会重新创建控件
+
+        # 如果存在sizeSlider且值不为1.0，应用当前的缩放比例
+        if self.sizeSlider is not None and self.sizeSlider.value != 1.0:
+            self._resizeImage(self.sizeSlider.value)
 
     def imResize(
         self, sizeRatio: Union[Tuple[float, float], Tuple[float], float] = (1, 1)

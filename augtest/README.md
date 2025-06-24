@@ -14,7 +14,7 @@
 
 ### 安装依赖
 ```bash
-uv add numpy ipywidgets ipykernel pillow h5py ipyfilechooser matplotlib
+uv sync
 ```
 
 ### 基本使用

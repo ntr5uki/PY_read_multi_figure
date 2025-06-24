@@ -5,6 +5,7 @@ from typing import Optional
 
 # 使用相对导入，更简洁
 from .image_contrast_viewer import ImageContrastViewer
+from .image_cropper import CutFrameSelector
 
 
 class ImageSequenceViewer:
@@ -163,6 +164,151 @@ class ImageSequenceViewer:
 
         # 触发图像更新
         self._triggerImageUpdate()
+
+    def crop_sequence_interactive(self) -> None:
+        """
+        使用当前显示帧作为参考，对整个图像序列进行交互式裁剪
+
+        该方法会：
+        1. 获取当前显示的帧作为2D参考图像
+        2. 将其归一化到0-255范围
+        3. 使用CutFrameSelector进行交互式ROI选择
+        4. 用裁剪结果更新整个图像序列
+        """
+        try:
+            # 获取当前显示的帧（原始数据，不受SizeControl影响）
+            current_frame = self.getCurrentImage()
+
+            # 始终使用原始数据进行归一化，避免SizeControl的影响
+            # 注意：不使用 imageViewer.dataDisplay，因为它会受到SizeControl缩放影响
+            img2d = self._normalize_to_uint8(current_frame)
+
+            # 确保img2d是2D数组
+            if img2d.ndim != 2:
+                raise ValueError(f"参考图像必须是2D数组，当前维度: {img2d.ndim}")
+
+            # 使用完整的图像序列作为3D数据
+            img3d = self.imageSequence
+
+            # 创建CutFrameSelector实例
+            self.crop_selector = CutFrameSelector(img2d, img3d)
+
+            # 注册确认回调，点击确认后自动应用裁剪结果
+            self.crop_selector.register_confirm_callback(self._on_crop_confirmed)
+
+            # 显示ROI选择器
+            self.crop_selector.display()
+
+        except Exception as e:
+            print(f"❌ 启动交互式裁剪时出错: {e}")
+            raise
+
+    def _normalize_to_uint8(self, image: np.ndarray) -> np.ndarray:
+        """
+        将图像归一化到0-255的uint8范围
+
+        Args:
+            image: 输入图像数组
+
+        Returns:
+            归一化后的uint8图像
+        """
+        # 使用全局范围进行归一化，确保一致性
+        data_min, data_max = self.globalRange
+        if data_max > data_min:
+            normalized = np.interp(image, (data_min, data_max), (0, 255))
+        else:
+            normalized = np.zeros_like(image)
+
+        return normalized.astype(np.uint8)
+
+    def _on_crop_confirmed(self, crop_selector) -> None:
+        """
+        裁剪确认回调函数，自动应用裁剪结果
+
+        Args:
+            crop_selector: CutFrameSelector实例
+        """
+        try:
+            # 获取裁剪结果
+            result = crop_selector.get_result()
+
+            if result is not None:
+                # 更新图像序列
+                self.updateImageSequence(result)
+
+                # 清理裁剪选择器引用
+                if hasattr(self, 'crop_selector'):
+                    delattr(self, 'crop_selector')
+            else:
+                print("⚠️ 裁剪结果为空，无法自动应用")
+
+        except Exception as e:
+            print(f"❌ 自动应用裁剪结果时出错: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def check_crop_result(self) -> bool:
+        """
+        检查裁剪结果并应用到图像序列
+
+        Returns:
+            True如果裁剪成功并已应用，False如果尚未完成或失败
+        """
+        if not hasattr(self, 'crop_selector'):
+            print("❌ 尚未启动交互式裁剪")
+            return False
+
+        # 获取裁剪结果
+        result = self.crop_selector.get_result()
+        status = self.crop_selector.get_status()
+
+        print(f"📊 裁剪状态: {status}")
+
+        if result is not None:
+            try:
+                print(f"✅ 获取到裁剪结果!")
+                print(f"   原始序列尺寸: {self.imageSequence.shape}")
+                print(f"   裁剪后尺寸: {result.shape}")
+
+                # 获取ROI信息
+                roi_info = self.crop_selector.get_roi_info()
+                if roi_info:
+                    print(f"   ROI坐标: {roi_info['coordinates']}")
+                    print(f"   ROI尺寸: {roi_info['width']} x {roi_info['height']}")
+                    print(f"   保留面积: {roi_info['area']} 像素")
+
+                # 更新图像序列
+                print(f"\n🔄 更新图像序列...")
+                self.updateImageSequence(result)
+
+                print(f"✅ 图像序列更新完成!")
+                print(f"   新序列尺寸: {self.imageSequence.shape}")
+                print(f"   新帧数: {self.numImages}")
+
+                # 清理裁剪选择器引用
+                delattr(self, 'crop_selector')
+
+                return True
+
+            except Exception as e:
+                print(f"❌ 应用裁剪结果时出错: {e}")
+                return False
+        else:
+            print(f"⏳ 裁剪尚未完成，请在ROI选择器中完成选择")
+            return False
+
+    def get_crop_status(self) -> str:
+        """
+        获取当前裁剪操作的状态
+
+        Returns:
+            状态描述字符串
+        """
+        if not hasattr(self, 'crop_selector'):
+            return "未启动交互式裁剪"
+
+        return self.crop_selector.get_status()
 
 
 if __name__ == "__main__":

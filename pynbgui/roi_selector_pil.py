@@ -149,12 +149,22 @@ class PILROISelector:
         # 初始化图像显示
         self._update_image_display()
     
+    def register_confirm_callback(self, callback: callable) -> None:
+        """注册确认按钮的回调函数，允许添加多个回调"""
+        # ipywidgets的on_click方法会添加回调，而不是覆盖
+        self.confirm_button.on_click(callback)
+
+    def register_cancel_callback(self, callback: callable) -> None:
+        """注册取消按钮的回调函数，允许添加多个回调"""
+        # ipywidgets的on_click方法会添加回调，而不是覆盖
+        self.cancel_button.on_click(callback)
+
     def _setup_callbacks(self):
         """设置回调函数"""
         self.x_range_slider.observe(self._on_range_change, names='value')
         self.y_range_slider.observe(self._on_range_change, names='value')
-        self.confirm_button.on_click(self._on_confirm)
-        self.cancel_button.on_click(self._on_cancel)
+        self.register_confirm_callback(self._on_confirm)
+        self.register_cancel_callback(self._on_cancel)
     
     def _on_range_change(self, change) -> None:
         """滑块值变化时的回调函数（带节流）"""

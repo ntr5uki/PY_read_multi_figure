@@ -13,4 +13,13 @@ dependencies = [
     "ipyfilechooser>=0.6.0",
     "matplotlib>=3.10.3",
     "ipympl>=0.9.7",
+    "simpleeval>=1.0.3",
+    "scipy>=1.16.0",
 ]
+
+
+
+[[tool.uv.index]]
+name = "aliyun"
+url = "https://mirrors.aliyun.com/pypi/simple"
+default = true

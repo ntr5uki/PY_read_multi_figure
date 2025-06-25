@@ -21,11 +21,19 @@ def create_menu_bar_panels() -> tuple:
         button_style='primary',
         tooltip='选则区域剪裁'
     )
+
+    # 工具面板添加调整大小项
+    tools_panel.add_menu_item(
+        item_id='resize_select',
+        description='🎯 调整大小',
+        button_style='primary',
+        tooltip='调整大小'
+    )
     
     return file_panel, operation_panel, tools_panel, help_panel
 
 
-def create_horizontal_menu_bar() -> tuple(widgets.HBox, tuple):
+def create_horizontal_menu_bar() -> tuple[widgets.HBox, tuple]:
     """
     创建水平排列的菜单栏
     

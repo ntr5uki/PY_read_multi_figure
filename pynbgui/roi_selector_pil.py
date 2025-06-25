@@ -5,38 +5,47 @@
 
 import io
 import time
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple, Union, Callable
 import numpy as np
 from PIL import Image, ImageDraw
 import ipywidgets as widgets
 from IPython.display import display
 
+from .confirm_cancel_mixin import ConfirmCancelMixin
 
-class PILROISelector:
+
+class PILROISelector(ConfirmCancelMixin):
     """基于PIL的ROI选择器类"""
     
     def __init__(self, image: np.ndarray):
         """
         初始化ROI选择器
-        
+
         Args:
             image: 输入的numpy图像数组，支持2D灰度图或3D彩色图
         """
+        # 初始化父类（确认取消按钮）
+        super().__init__(confirm_text='确认选择', cancel_text='取消')
+
         self.original_image = self._prepare_image(image)
         self.image_height, self.image_width = self.original_image.shape[:2]
-        
+
         # ROI选择结果
         self.roi_result: Optional[Tuple[int, int, int, int]] = None
-        self.is_cancelled = False
-        
+
         # 节流更新控制
         self._last_update_time = 0
         # 根据图像尺寸动态调整节流延迟
         self._update_delay = self._calculate_throttle_delay()
-        
+
         # 创建UI组件
         self._create_widgets()
         self._setup_callbacks()
+
+        # 设置主容器用于关闭操作
+        if self.main_container is None:
+            raise ValueError("主容器未设置，请检查代码逻辑")
+        self.set_main_container(self.main_container)
         
     def _prepare_image(self, image: np.ndarray) -> np.ndarray:
         """准备图像数据，确保格式正确"""
@@ -113,32 +122,15 @@ class PILROISelector:
         )
         
 
+
+        # 按钮容器已在父类中创建，直接使用
         
-        # 控制按钮
-        self.confirm_button = widgets.Button(
-            description='确认选择',
-            button_style='success',
-            layout=widgets.Layout(width='100px', margin='5px')
-        )
-        
-        self.cancel_button = widgets.Button(
-            description='取消',
-            button_style='danger',
-            layout=widgets.Layout(width='100px', margin='5px')
-        )
-        
-        # 按钮容器
-        self.button_box = widgets.HBox([
-            self.confirm_button,
-            self.cancel_button
-        ], layout=widgets.Layout(justify_content='center'))
-        
-        # 主容器
+        # 主容器（使用父类的按钮容器）
         self.main_container = widgets.VBox([
             self.image_widget,
             self.x_range_slider,
             self.y_range_slider,
-            self.button_box
+            self.get_button_box()  # 使用父类的按钮容器
         ], layout=widgets.Layout(
             align_items='center',
             padding='20px',
@@ -149,15 +141,7 @@ class PILROISelector:
         # 初始化图像显示
         self._update_image_display()
     
-    def register_confirm_callback(self, callback: callable) -> None:
-        """注册确认按钮的回调函数，允许添加多个回调"""
-        # ipywidgets的on_click方法会添加回调，而不是覆盖
-        self.confirm_button.on_click(callback)
-
-    def register_cancel_callback(self, callback: callable) -> None:
-        """注册取消按钮的回调函数，允许添加多个回调"""
-        # ipywidgets的on_click方法会添加回调，而不是覆盖
-        self.cancel_button.on_click(callback)
+    # 回调注册方法已在父类中实现
 
     def _setup_callbacks(self):
         """设置回调函数"""
@@ -208,27 +192,33 @@ class PILROISelector:
         
         # 转换为bytes并更新widget
         buffer = io.BytesIO()
-        pil_image.save(buffer, format='JPEG', quality=90)
+        pil_image.save(buffer, format='JPEG', quality=80)
         self.image_widget.value = buffer.getvalue()
     
 
     
-    def _on_confirm(self, button) -> None:
-        """确认按钮回调"""
+    def _on_confirm_action(self, button) -> None:
+        """实现父类的抽象方法：确认动作"""
         x_min, x_max = self.x_range_slider.value
         y_min, y_max = self.y_range_slider.value
         self.roi_result = (x_min, x_max, y_min, y_max)
-        self._close_widget()
-    
-    def _on_cancel(self, button) -> None:
-        """取消按钮回调"""
-        self.is_cancelled = True
+        # 父类会自动关闭弹窗
+
+    def _on_cancel_action(self, button) -> None:
+        """实现父类的抽象方法：取消动作"""
         self.roi_result = None
-        self._close_widget()
+        # 父类会自动关闭弹窗
+
+    # 保持向后兼容的方法
+    def _on_confirm(self, button) -> None:
+        """确认按钮回调（向后兼容）"""
+        self._on_confirm_action(button)
+
+    def _on_cancel(self, button) -> None:
+        """取消按钮回调（向后兼容）"""
+        self._on_cancel_action(button)
     
-    def _close_widget(self):
-        """关闭widget界面"""
-        self.main_container.close()
+    # _close_widget 方法已在父类 ConfirmCancelMixin 中实现
     
     def display(self):
         """显示ROI选择器"""

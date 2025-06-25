@@ -46,18 +46,13 @@ class InteractiveImageViewer:
         # 注册工具面板的ROI选择回调
         self.tools_panel.register_callback("roi_select", self._on_roi_menu_clicked)
 
+        # 注册工具面板的调整大小回调
+        self.tools_panel.register_callback("resize_select", self._on_resize_menu_clicked)
+
         # 初始状态禁用ROI选择（没有图像时）
         self.tools_panel.set_menu_item_enabled("roi_select", False)
 
-        # 创建ROI选择按钮
-        self.roi_button = widgets.Button(
-            description="🎯 选择ROI区域",
-            button_style="success",
-            tooltip="选择当前图像的感兴趣区域",
-            disabled=True,  # 初始状态为禁用
-            layout=widgets.Layout(width="150px", margin="5px 0"),
-        )
-        self.roi_button.on_click(self._on_roi_button_clicked)
+
 
         # 创建数组选择器（在其他组件创建之后）
         self.arraySelector = JupyterArraySelector(
@@ -69,7 +64,6 @@ class InteractiveImageViewer:
             [
                 widgets.HTML("<h3>📊 交互式图像查看器</h3>"),
                 self.menu_bar,  # 紧凑型菜单栏
-                self.roi_button,  # ROI按钮放在数组选择器上方
                 self.arraySelector.main_widget,
                 self.status_label,
                 self.viewer_container,
@@ -162,10 +156,6 @@ class InteractiveImageViewer:
                 # 更新现有的图像查看器
                 self.imageViewer.updateImageSequence(array)
 
-            # 启用ROI按钮（图像查看器创建成功后）
-            if hasattr(self, "roi_button") and self.roi_button is not None:
-                self.roi_button.disabled = False
-
             # 启用工具面板的ROI选择项
             if hasattr(self, "tools_panel") and self.tools_panel is not None:
                 self.tools_panel.set_menu_item_enabled("roi_select", True)
@@ -182,10 +172,6 @@ class InteractiveImageViewer:
         self.imageViewer = None
         if hasattr(self, "viewer_container") and self.viewer_container is not None:
             self.viewer_container.children = []
-
-        # 禁用ROI按钮（没有图像查看器时）
-        if hasattr(self, "roi_button") and self.roi_button is not None:
-            self.roi_button.disabled = True
 
         # 禁用工具面板的ROI选择项
         if hasattr(self, "tools_panel") and self.tools_panel is not None:
@@ -223,151 +209,20 @@ class InteractiveImageViewer:
             return
         self.imageViewer.crop_sequence_interactive()
 
-    def _on_roi_button_clicked(self, button) -> None:
+    def _on_resize_menu_clicked(self, item_id: str, button) -> None:
         """
-        ROI按钮点击回调函数
+        菜单栏调整大小回调函数
 
         Args:
+            item_id: 菜单项ID
             button: 点击的按钮widget
         """
-        try:
-            # 获取当前显示的图像数据
-            display_image = self._get_current_display_image()
-            if display_image is None:
-                self.status_label.value = "❌ 无法获取当前显示的图像数据"
-                return
-
-            # 获取当前图像信息用于显示
-            current_frame_info = self._get_current_frame_info()
-
-            # 创建并显示ROI选择器
-            roi_selector = PILROISelector(display_image)
-            roi_selector.display()
-
-            # 存储ROI选择器引用，用于后续结果处理
-            self.current_roi_selector = roi_selector
-
-            # 更新状态显示
-            self.status_label.value = (
-                f"🎯 ROI选择器已打开 {current_frame_info}，请选择感兴趣区域后点击确认"
-            )
-
-        except Exception as e:
-            self.status_label.value = f"❌ 打开ROI选择器时出错: {str(e)}"
-            print(f"ROI选择器错误: {e}")
-
-    def _get_current_frame_info(self) -> str:
-        """
-        获取当前帧的信息字符串
-
-        Returns:
-            当前帧信息的描述字符串
-        """
-        try:
-            if self.imageViewer is None:
-                return ""
-
-            if (
-                hasattr(self.imageViewer, "selectWidget")
-                and self.imageViewer.selectWidget is not None
-            ):
-                current_index = self.imageViewer.selectWidget.value
-                total_frames = self.imageViewer.numImages
-                if total_frames > 1:
-                    return f"(第{current_index + 1}帧，共{total_frames}帧)"
-                else:
-                    return "(单张图像)"
-
-            return ""
-        except Exception:
-            return ""
-
-    def get_last_roi_result(self) -> Optional[tuple]:
-        """
-        获取最后一次ROI选择的结果
-
-        Returns:
-            ROI坐标 (x_min, x_max, y_min, y_max) 或 None
-        """
-        if (
-            hasattr(self, "current_roi_selector")
-            and self.current_roi_selector is not None
-        ):
-            return self.current_roi_selector.roi_result
-        return None
-
-    def check_roi_status(self) -> str:
-        """
-        检查ROI选择状态并返回状态信息
-
-        Returns:
-            ROI选择状态的描述字符串
-        """
-        if (
-            not hasattr(self, "current_roi_selector")
-            or self.current_roi_selector is None
-        ):
-            return "尚未打开ROI选择器"
-
-        roi_result = self.current_roi_selector.roi_result
-        if roi_result is not None:
-            x_min, x_max, y_min, y_max = roi_result
-            width = x_max - x_min
-            height = y_max - y_min
-            area = width * height
-            return f"✅ ROI已选择: 坐标({x_min}, {y_min}) 到 ({x_max}, {y_max}), 大小: {width}×{height}, 面积: {area}像素"
-        elif self.current_roi_selector.is_cancelled:
-            return "❌ ROI选择已取消"
-        else:
-            return "⏳ ROI选择器已打开，等待用户选择..."
-
-    def _get_current_display_image(self) -> Optional[np.ndarray]:
-        """
-        获取当前显示的经过对比度调整的图像数据
-
-        Returns:
-            当前显示的图像数据（uint8格式），如果无法获取则返回None
-        """
-        try:
-            # 检查图像查看器是否存在
-            if self.imageViewer is None:
-                return None
-
-            # 检查ImageContrastViewer是否存在
-            if (
-                not hasattr(self.imageViewer, "imageViewer")
-                or self.imageViewer.imageViewer is None
-            ):
-                return None
-
-            # 获取经过对比度调整的显示数据
-            contrast_viewer = self.imageViewer.imageViewer
-            if (
-                hasattr(contrast_viewer, "dataDisplay")
-                and contrast_viewer.dataDisplay is not None
-            ):
-                return contrast_viewer.dataDisplay.copy()
-
-            # 如果没有显示数据，尝试获取原始数据
-            if hasattr(contrast_viewer, "data") and contrast_viewer.data is not None:
-                # 将原始数据转换为uint8格式
-                data = contrast_viewer.data
-                if data.dtype != np.uint8:
-                    # 简单的归一化到0-255范围
-                    data_min, data_max = data.min(), data.max()
-                    if data_max > data_min:
-                        data = ((data - data_min) / (data_max - data_min) * 255).astype(
-                            np.uint8
-                        )
-                    else:
-                        data = np.zeros_like(data, dtype=np.uint8)
-                return data.copy()
-
-            return None
-
-        except Exception as e:
-            print(f"获取当前显示图像时出错: {e}")
-            return None
+        print("🎯 从菜单栏触发调整大小")
+        # 调用原有的调整大小按钮点击逻辑
+        if self.imageViewer is None:
+            print("❌ 请先选择一个图像数组")
+            return
+        self.imageViewer.resize_interactive()
 
 
 # 便捷函数

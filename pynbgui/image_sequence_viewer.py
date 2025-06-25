@@ -6,6 +6,7 @@ from typing import Optional
 # 使用相对导入，更简洁
 from .image_contrast_viewer import ImageContrastViewer
 from .image_cropper import CutFrameSelector
+from .resize_dialog_widget import ResizePopupWidget
 
 
 class ImageSequenceViewer:
@@ -203,6 +204,22 @@ class ImageSequenceViewer:
             print(f"❌ 启动交互式裁剪时出错: {e}")
             raise
 
+    def resize_interactive(self) -> None:
+        try:
+
+            # 创建CutFrameSelector实例
+            self.resize_selector = ResizePopupWidget(self.imageSequence)
+
+            # 注册确认回调，点击确认后自动应用裁剪结果
+            self.resize_selector.register_confirm_callback(self._on_resize_confirm)
+
+            # 显示ROI选择器
+            self.resize_selector.display()
+            
+        except Exception as e:
+            print(f"❌ 启动交互式裁剪时出错: {e}")
+            raise
+
     def _normalize_to_uint8(self, image: np.ndarray) -> np.ndarray:
         """
         将图像归一化到0-255的uint8范围
@@ -267,35 +284,17 @@ class ImageSequenceViewer:
 
         if result is not None:
             try:
-                print(f"✅ 获取到裁剪结果!")
-                print(f"   原始序列尺寸: {self.imageSequence.shape}")
-                print(f"   裁剪后尺寸: {result.shape}")
-
-                # 获取ROI信息
-                roi_info = self.crop_selector.get_roi_info()
-                if roi_info:
-                    print(f"   ROI坐标: {roi_info['coordinates']}")
-                    print(f"   ROI尺寸: {roi_info['width']} x {roi_info['height']}")
-                    print(f"   保留面积: {roi_info['area']} 像素")
-
                 # 更新图像序列
-                print(f"\n🔄 更新图像序列...")
                 self.updateImageSequence(result)
-
-                print(f"✅ 图像序列更新完成!")
-                print(f"   新序列尺寸: {self.imageSequence.shape}")
-                print(f"   新帧数: {self.numImages}")
-
                 # 清理裁剪选择器引用
                 delattr(self, 'crop_selector')
-
+                print("✅ 裁剪成功并已应用")
                 return True
-
             except Exception as e:
                 print(f"❌ 应用裁剪结果时出错: {e}")
                 return False
         else:
-            print(f"⏳ 裁剪尚未完成，请在ROI选择器中完成选择")
+            print("⏳ 裁剪尚未完成，请在ROI选择器中完成选择")
             return False
 
     def get_crop_status(self) -> str:
@@ -309,6 +308,25 @@ class ImageSequenceViewer:
             return "未启动交互式裁剪"
 
         return self.crop_selector.get_status()
+
+    def _on_resize_confirm(self, wgt: ResizePopupWidget) -> None:
+        try:
+            if not hasattr(self, 'resize_selector'):
+                print("❌ 尚未启动交互式调整大小")
+                return
+            new_size = wgt.get_confirm_size()
+            if new_size is not None:
+                from scipy.ndimage import zoom
+                old_shape = self.imageSequence.shape
+                if len(new_size) == len(old_shape):
+                    scale_factors = tuple(ns / os for ns, os in zip(new_size, old_shape))
+                    print(f"缩放因子: {scale_factors}")
+                    data = zoom(self.imageSequence, scale_factors, order=1)  # order=1双线性插值
+                    self.updateImageSequence(data)
+            delattr(self, 'resize_selector')
+        except Exception as e:
+            print(f"❌ 调整大小时出错: {e}")
+            raise
 
 
 if __name__ == "__main__":

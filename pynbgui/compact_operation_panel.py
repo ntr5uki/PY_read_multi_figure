@@ -39,22 +39,21 @@ class CompactOperationPanel:
         
     def _create_widgets(self):
         """创建界面组件"""
-        # 主操作按钮 - 更紧凑的样式
+        # 主操作按钮 - 宽度由内容决定
         self.main_button = widgets.Button(
             description=f'{self.title} ▼',
             button_style='info',
             tooltip=f'点击展开/收起{self.title}菜单',
             layout=widgets.Layout(
-                width='auto',  # 自动宽度
-                flex='1 1 auto', # 允许增长和收缩
-                height='32px',  # 固定高度
+                width='auto', # 宽度由内容决定
+                height='32px',
                 margin='0px',
                 border='1px solid #17a2b8',
                 border_radius='3px'
             )
         )
         
-        # 菜单容器 - 更紧凑的样式
+        # 菜单容器 - 将被父容器拉伸
         self.menu_container = widgets.VBox(
             [],
             layout=widgets.Layout(
@@ -64,21 +63,22 @@ class CompactOperationPanel:
                 margin='0',
                 background_color='#f8f9fa',
                 display='none',
-                width='auto', # 自动宽度
-                max_height='200px',  # 限制最大高度
-                overflow='auto'  # 超出时滚动
+                width='100%', # 继承父容器宽度
+                max_height='200px',
+                overflow='auto'
             )
         )
         
-        # 主面板容器 - 最小化边距和内边距
-        self.panel = widgets.VBox([ # 使用VBox来包裹，因为main_button和menu_container是垂直排列的
+        # 主面板容器 - 锁定宽度并拉伸子项
+        self.panel = widgets.VBox([
             self.main_button,
             self.menu_container
         ], layout=widgets.Layout(
             margin='0px',
             padding='0px',
-            width='auto', # 自动宽度
-            flex='1 1 auto' # 允许增长和收缩
+            width='max-content',      # 关键：宽度由最宽的内容决定
+            flex='0 0 auto',          # 不增长不收缩
+            align_items='stretch'     # 关键：拉伸所有子项以匹配面板宽度
         ))
         
     def add_menu_item(self, item_id: str, description: str, 
@@ -101,8 +101,7 @@ class CompactOperationPanel:
             tooltip=tooltip,
             disabled=not enabled,
             layout=widgets.Layout(
-                width='auto',       # 自动宽度
-                flex='1 1 auto',    # 允许增长和收缩
+                width='100%',       # 占据父容器100%宽度
                 height='28px',     # 固定高度
                 margin='0px',
                 border_radius='2px',

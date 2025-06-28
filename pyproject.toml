@@ -1,7 +1,7 @@
 [project]
 name = "py-read-multi-figure"
 version = "0.1.0"
-description = "Add your description here"
+description = "Interactive image viewer for Jupyter notebooks with ROI selection"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -16,8 +16,49 @@ dependencies = [
     "simpleeval>=1.0.3",
     "scipy>=1.16.0",
 ]
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+# [project.scripts]
+# 可选：如果需要命令行入口点
+# interactive-viewer = "pynbgui.interactive_image_viewer:main"
+
+[project.entry-points."pynbgui"]
+# 自定义入口点组，方便其他项目发现
+interactive_viewer = "pynbgui.interactive_image_viewer:InteractiveImageViewer"
+
+[project.urls]
+Homepage = "https://github.com/yourusername/py-read-multi-figure"
+Repository = "https://github.com/yourusername/py-read-multi-figure"
+Issues = "https://github.com/yourusername/py-read-multi-figure/issues"
 
 
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pynbgui"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/pynbgui",
+    "/README.md",
+    "/pyproject.toml",
+]
 
 [[tool.uv.index]]
 name = "aliyun"

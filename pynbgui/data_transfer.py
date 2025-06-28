@@ -1,6 +1,7 @@
 import numpy as np
 from multiprocessing.connection import Listener, Connection, Client
 from typing import Any, Tuple, Union
+from IPython.core.getipython import get_ipython
 
 
 class DataTransfer:
@@ -134,7 +135,7 @@ def assignin_caller(data_dict: dict, caller_globals: dict) -> None:
     print(f"已将 {len(data_dict)} 个变量分配到调用者命名空间: {list(data_dict.keys())}")
 
 
-def load_and_assign_h5_data(file_path: str, target_globals: dict = None) -> None:
+def load_and_assign_h5_data(file_path: str, target_globals: dict|None = None) -> None:
     """
     加载 H5 数据并直接分配到指定的命名空间中
     

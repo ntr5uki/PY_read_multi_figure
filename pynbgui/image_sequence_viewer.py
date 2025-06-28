@@ -322,7 +322,7 @@ class ImageSequenceViewer:
                     scale_factors = tuple(ns / os for ns, os in zip(new_size, old_shape))
                     print(f"缩放因子: {scale_factors}")
                     data = zoom(self.imageSequence, scale_factors, order=1)  # order=1双线性插值
-                    self.updateImageSequence(data)
+                    self.updateImageSequence(data) # type: ignore
             delattr(self, 'resize_selector')
         except Exception as e:
             print(f"❌ 调整大小时出错: {e}")

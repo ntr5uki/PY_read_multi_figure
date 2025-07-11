@@ -25,6 +25,14 @@ class InteractiveImageViewer:
         self.showSizeControl = showSizeControl
         self.imageViewer: Optional[ImageSequenceViewer] = None
 
+        # 界面状态管理
+        self._interface_state = {
+            'saved_children': None,
+            'current_mode': 'normal',  # normal, roi_selecting, resizing
+            'temporary_widget': None,
+            'is_locked': False
+        }
+
         # 先创建状态显示和容器
         self.status_label = widgets.HTML(
             value="<i>请选择一个numpy数组开始查看图像</i>",
@@ -194,6 +202,85 @@ class InteractiveImageViewer:
         """
         return self.imageViewer
 
+    def _enter_temporary_mode(self, mode: str, temporary_widget) -> bool:
+        """
+        进入临时界面模式
+
+        Args:
+            mode: 模式名称 ('roi_selecting', 'resizing', 等)
+            temporary_widget: 要显示的临时widget
+
+        Returns:
+            True如果成功进入临时模式，False如果当前已在临时模式中
+        """
+        try:
+            # 检查是否已经在临时模式中
+            if self._interface_state['is_locked']:
+                print("⚠️ 界面正在切换中，请稍候")
+                return False
+
+            if self._interface_state['current_mode'] != 'normal':
+                print(f"⚠️ 当前正在{self._interface_state['current_mode']}模式中，请先完成当前操作")
+                return False
+
+            # 锁定界面状态
+            self._interface_state['is_locked'] = True
+
+            # 保存当前界面状态
+            self._interface_state['saved_children'] = list(self.main_widget.children)
+            self._interface_state['current_mode'] = mode
+            self._interface_state['temporary_widget'] = temporary_widget
+
+            # 切换到临时界面
+            self.main_widget.children = [temporary_widget]
+
+            print(f"✅ 已进入{mode}模式")
+            return True
+
+        except Exception as e:
+            print(f"❌ 进入临时模式失败: {e}")
+            self._interface_state['is_locked'] = False
+            return False
+
+    def _exit_temporary_mode(self) -> bool:
+        """
+        退出临时界面模式，恢复主界面
+
+        Returns:
+            True如果成功退出，False如果出现错误
+        """
+        try:
+            # 恢复主界面
+            if self._interface_state['saved_children'] is not None:
+                self.main_widget.children = self._interface_state['saved_children']
+
+            # 清理临时widget
+            if self._interface_state['temporary_widget'] is not None:
+                try:
+                    # 尝试关闭临时widget（如果支持close方法）
+                    if hasattr(self._interface_state['temporary_widget'], 'close'):
+                        self._interface_state['temporary_widget'].close()
+                except Exception as e:
+                    print(f"⚠️ 清理临时widget时出错: {e}")
+
+            # 重置状态
+            old_mode = self._interface_state['current_mode']
+            self._interface_state = {
+                'saved_children': None,
+                'current_mode': 'normal',
+                'temporary_widget': None,
+                'is_locked': False
+            }
+
+            print(f"✅ 已退出{old_mode}模式，恢复主界面")
+            return True
+
+        except Exception as e:
+            print(f"❌ 退出临时模式失败: {e}")
+            # 即使出错也要解锁
+            self._interface_state['is_locked'] = False
+            return False
+
     def _on_roi_menu_clicked(self, item_id: str, button) -> None:
         """
         菜单栏ROI选择回调函数
@@ -203,11 +290,91 @@ class InteractiveImageViewer:
             button: 点击的按钮widget
         """
         print("🎯 从菜单栏触发ROI选择")
-        # 调用原有的ROI按钮点击逻辑
+
+        # 检查前置条件
         if self.imageViewer is None:
             print("❌ 请先选择一个图像数组")
             return
-        self.imageViewer.crop_sequence_interactive()
+
+        try:
+            # 获取当前显示的帧作为参考图像
+            current_frame = self.imageViewer.getCurrentImage()
+            img2d = self.imageViewer._normalize_to_uint8(current_frame)
+
+            # 创建ROI选择器
+            from .image_cropper import CutFrameSelector
+            crop_selector = CutFrameSelector(img2d, self.imageViewer.imageSequence)
+
+            # 注册回调以在确认/取消后恢复界面
+            crop_selector.register_confirm_callback(self._on_roi_confirmed)
+            crop_selector.register_cancel_callback(self._on_roi_cancelled)
+
+            # 进入临时模式
+            if self._enter_temporary_mode('roi_selecting', crop_selector.roi_selector.main_container):
+                # 保存crop_selector引用以便后续使用
+                self._current_crop_selector = crop_selector
+                print("🎯 ROI选择界面已显示")
+            else:
+                print("❌ 无法进入ROI选择模式")
+
+        except Exception as e:
+            print(f"❌ 启动ROI选择功能时出错: {e}")
+            # 确保在出错时恢复界面
+            self._exit_temporary_mode()
+
+    def _on_roi_confirmed(self, crop_selector) -> None:
+        """
+        ROI选择确认回调函数
+
+        Args:
+            crop_selector: CutFrameSelector实例
+        """
+        try:
+            print("✅ 用户确认了ROI选择操作")
+
+            # 获取裁剪结果并应用到图像序列
+            if crop_selector and self.imageViewer is not None:
+                result = crop_selector.get_result()
+                if result is not None:
+                    print(f"🎯 应用ROI裁剪结果，新尺寸: {result.shape}")
+                    # 更新图像序列
+                    self.imageViewer.updateImageSequence(result)
+
+        except Exception as e:
+            print(f"❌ 处理ROI确认时出错: {e}")
+        finally:
+            # 无论成功失败都要恢复界面
+            self._cleanup_roi_operation()
+
+    def _on_roi_cancelled(self, crop_selector) -> None:
+        """
+        ROI选择取消回调函数
+
+        Args:
+            crop_selector: CutFrameSelector实例
+        """
+        try:
+            print("❌ 用户取消了ROI选择操作")
+        except Exception as e:
+            print(f"❌ 处理ROI取消时出错: {e}")
+        finally:
+            # 无论成功失败都要恢复界面
+            self._cleanup_roi_operation()
+
+    def _cleanup_roi_operation(self) -> None:
+        """
+        清理ROI选择操作的资源并恢复界面
+        """
+        try:
+            # 清理crop_selector引用
+            if hasattr(self, '_current_crop_selector'):
+                self._current_crop_selector = None
+
+            # 退出临时模式，恢复主界面
+            self._exit_temporary_mode()
+
+        except Exception as e:
+            print(f"❌ 清理ROI选择操作时出错: {e}")
 
     def _on_resize_menu_clicked(self, item_id: str, button) -> None:
         """
@@ -218,11 +385,87 @@ class InteractiveImageViewer:
             button: 点击的按钮widget
         """
         print("🎯 从菜单栏触发调整大小")
-        # 调用原有的调整大小按钮点击逻辑
+
+        # 检查前置条件
         if self.imageViewer is None:
             print("❌ 请先选择一个图像数组")
             return
-        self.imageViewer.resize_interactive()
+
+        try:
+            # 创建调整大小选择器
+            from .resize_dialog_widget import ResizePopupWidget
+            resize_selector = ResizePopupWidget(self.imageViewer.imageSequence)
+
+            # 注册回调以在确认/取消后恢复界面
+            resize_selector.register_confirm_callback(self._on_resize_confirmed)
+            resize_selector.register_cancel_callback(self._on_resize_cancelled)
+
+            # 进入临时模式
+            if self._enter_temporary_mode('resizing', resize_selector.main_container):
+                # 保存resize_selector引用以便后续使用
+                self._current_resize_selector = resize_selector
+                print("📏 调整大小界面已显示")
+            else:
+                print("❌ 无法进入调整大小模式")
+
+        except Exception as e:
+            print(f"❌ 启动调整大小功能时出错: {e}")
+            # 确保在出错时恢复界面
+            self._exit_temporary_mode()
+
+    def _on_resize_confirmed(self, button) -> None:
+        """
+        调整大小确认回调函数
+
+        Args:
+            button: 确认按钮widget
+        """
+        try:
+            print("✅ 用户确认了调整大小操作")
+
+            # 获取新尺寸并应用到图像序列
+            if hasattr(self, '_current_resize_selector') and self._current_resize_selector:
+                new_size = self._current_resize_selector.get_confirm_size()
+                if new_size is not None and self.imageViewer is not None:
+                    # 这里可以添加实际的调整大小逻辑
+                    print(f"📏 将应用新尺寸: {new_size}")
+                    # TODO: 实现实际的图像序列调整大小逻辑
+
+        except Exception as e:
+            print(f"❌ 处理调整大小确认时出错: {e}")
+        finally:
+            # 无论成功失败都要恢复界面
+            self._cleanup_resize_operation()
+
+    def _on_resize_cancelled(self, button) -> None:
+        """
+        调整大小取消回调函数
+
+        Args:
+            button: 取消按钮widget
+        """
+        try:
+            print("❌ 用户取消了调整大小操作")
+        except Exception as e:
+            print(f"❌ 处理调整大小取消时出错: {e}")
+        finally:
+            # 无论成功失败都要恢复界面
+            self._cleanup_resize_operation()
+
+    def _cleanup_resize_operation(self) -> None:
+        """
+        清理调整大小操作的资源并恢复界面
+        """
+        try:
+            # 清理resize_selector引用
+            if hasattr(self, '_current_resize_selector'):
+                self._current_resize_selector = None
+
+            # 退出临时模式，恢复主界面
+            self._exit_temporary_mode()
+
+        except Exception as e:
+            print(f"❌ 清理调整大小操作时出错: {e}")
 
 
 # 便捷函数

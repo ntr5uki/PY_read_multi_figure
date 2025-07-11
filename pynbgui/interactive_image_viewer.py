@@ -339,6 +339,8 @@ class InteractiveImageViewer:
                     print(f"🎯 应用ROI裁剪结果，新尺寸: {result.shape}")
                     # 更新图像序列
                     self.imageViewer.updateImageSequence(result)
+                    # 更新界面显示信息
+                    self._update_display_info_after_resize(result)
 
         except Exception as e:
             print(f"❌ 处理ROI确认时出错: {e}")
@@ -427,9 +429,40 @@ class InteractiveImageViewer:
             if hasattr(self, '_current_resize_selector') and self._current_resize_selector:
                 new_size = self._current_resize_selector.get_confirm_size()
                 if new_size is not None and self.imageViewer is not None:
-                    # 这里可以添加实际的调整大小逻辑
                     print(f"📏 将应用新尺寸: {new_size}")
-                    # TODO: 实现实际的图像序列调整大小逻辑
+
+                    # 实现实际的图像序列调整大小逻辑
+                    try:
+                        from scipy.ndimage import zoom
+                        old_shape = self.imageViewer.imageSequence.shape
+                        print(f"🔍 原始尺寸: {old_shape}")
+
+                        # 确保新尺寸的维度与原始数据匹配
+                        if len(new_size) == len(old_shape):
+                            # 计算缩放因子
+                            scale_factors = tuple(ns / os for ns, os in zip(new_size, old_shape))
+                            print(f"🔍 缩放因子: {scale_factors}")
+
+                            # 应用缩放
+                            resized_data = zoom(self.imageViewer.imageSequence, scale_factors, order=1)
+                            print(f"🔍 调整后尺寸: {resized_data.shape}")
+
+                            # 更新图像序列
+                            self.imageViewer.updateImageSequence(resized_data)
+                            print("✅ 图像序列调整大小完成")
+
+                            # 更新界面显示信息
+                            self._update_display_info_after_resize(resized_data)
+
+                        else:
+                            print(f"❌ 尺寸维度不匹配：新尺寸{len(new_size)}维，原始数据{len(old_shape)}维")
+
+                    except ImportError:
+                        print("❌ 缺少scipy库，无法进行图像缩放")
+                    except Exception as resize_error:
+                        print(f"❌ 调整图像大小时出错: {resize_error}")
+                else:
+                    print("⚠️ 未获取到有效的新尺寸")
 
         except Exception as e:
             print(f"❌ 处理调整大小确认时出错: {e}")
@@ -451,6 +484,38 @@ class InteractiveImageViewer:
         finally:
             # 无论成功失败都要恢复界面
             self._cleanup_resize_operation()
+
+    def _update_display_info_after_resize(self, resized_data: np.ndarray) -> None:
+        """
+        调整大小后更新界面显示信息
+
+        Args:
+            resized_data: 调整大小后的数据
+        """
+        try:
+            # 获取当前选择的数组名称
+            selected_name, _ = self.arraySelector.get_selected_array()
+            if selected_name:
+                # 更新JupyterArraySelector的数组缓存
+                self.arraySelector.arrays[selected_name] = resized_data
+
+                # 更新JupyterArraySelector的信息显示
+                from .jupyter_array_selector import get_array_info
+                info_text = get_array_info(resized_data)
+                self.arraySelector.info_label.value = f"<b>{selected_name}</b>: {info_text}"
+
+                # 注意：不修改下拉框选项，避免触发选择变化
+
+                # 更新InteractiveImageViewer的状态显示
+                if resized_data.ndim == 2:
+                    self.status_label.value = f"✅ 已选择2D数组 <b>{selected_name}</b> - 形状: {resized_data.shape}"
+                elif resized_data.ndim == 3:
+                    self.status_label.value = f"✅ 已选择3D数组 <b>{selected_name}</b> - 形状: {resized_data.shape} ({resized_data.shape[0]}帧图像)"
+
+                print("🔄 界面显示信息已更新")
+
+        except Exception as e:
+            print(f"❌ 更新显示信息时出错: {e}")
 
     def _cleanup_resize_operation(self) -> None:
         """
